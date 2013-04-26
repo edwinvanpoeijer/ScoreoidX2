@@ -38,12 +38,6 @@ Scoreoid* Scoreoid::instance = NULL;
 
 Scoreoid::~Scoreoid()
 {
-    CCUserDefault::sharedUserDefault()->setStringForKey("so_localPlayerFirstName",this->_localPlayerFirstName);
-    CCUserDefault::sharedUserDefault()->setStringForKey("so_localPlayerLastName",this->_localPlayerLastName);
-
-    if (this->localPlayer != NULL)
-        CC_SAFE_RELEASE(this->localPlayer);
-    CC_SAFE_RELEASE(this->apiDictionary);
 }
 
 Scoreoid* Scoreoid::GetInstance()
@@ -58,78 +52,26 @@ Scoreoid* Scoreoid::GetInstance()
 
 Scoreoid::Scoreoid()
 {
-    // Load the userstatus
-    this->_userStatus = CCUserDefault::sharedUserDefault()->getIntegerForKey("so_userstatus",SO_SHOULDAUTHENTICATE);
-    this->_localPlayerID = CCUserDefault::sharedUserDefault()->getStringForKey("so_localPlayerID","");
-    this->_localPlayerFirstName = CCUserDefault::sharedUserDefault()->getStringForKey("so_localPlayerFirstName","");
-    this->_localPlayerLastName = CCUserDefault::sharedUserDefault()->getStringForKey("so_localPlayerLastName","");
-    this->localPlayer = NULL;
-    
     this->m_delegate = NULL;
-    this->_gameInProgress = false;
-    this->_playerInProgress = false;
-    this->_scoreInProgress = false;
-    
     this->_scoreoidAvailable = false;
-    this->_userAuthenticated = false;
-    this->loginStatus = IDLE;
+    this->_actionRunning = false;
+    this->_currentApiCall = SO_INIT;
+    this->_gameID = "";
+    this->_ApiKey = "";
     
-    // Load the API
-    this->apiDictionary = CCDictionary::createWithContentsOfFile("scoreoidApi.plist");
-    this->apiDictionary->retain();
-    
-    this->_scoreoidAvailable = true;
-
 }
 
-void Scoreoid::setLocalPlayerID(const char *playerID)
+void Scoreoid::initScoreoid(const char *gameID, const char *apiKey)
 {
-     this->_localPlayerID = playerID;
-    if (strlen(this->_localPlayerFirstName.c_str())== 0 && strlen(this->_localPlayerLastName.c_str())== 0)
-    {
-        this->_localPlayerFirstName = "Player";
-        this->_localPlayerLastName = playerID;
-    }
-}
-bool Scoreoid::setLocalPlayer(cocos2d::CCDictionary *localPlayer)
-{
-    if (this->localPlayer == NULL)
-    {
-        this->localPlayer = localPlayer;
-        this->localPlayer->retain();
-    }
-    else
-    {
-        CCDictionary* tmp = this->localPlayer;
-        tmp->release();
-        this->localPlayer = localPlayer;
-        this->localPlayer->retain();
-    }
-    return true;
+    this->_scoreoidAvailable = false;
+    this->_actionRunning = false;
+    this->_gameID = gameID;
+    this->_ApiKey = apiKey;
+    // Call getGame to init
+    this->_currentApiCall = SO_INIT;
+    this->getGame();
 }
 
-CCDictionary* Scoreoid::getLocalPlayer()
-{
-    CCDictionary* result = NULL;
-    if (this->localPlayer != NULL)
-    {
-        CCDictionary* local = this->localPlayer;
-        CCString* apiCall = (CCString*) local->objectForKey("api");
-        if (!strcmp(apiCall->getCString(), "getPlayer"))
-        {
-            CCArray* tmpArray = (CCArray*)local->objectForKey("result");
-            result = (CCDictionary*) tmpArray->objectAtIndex(0);
-        }
-    }
-    return result;
-}
-void Scoreoid::setUserStatus(int status)
-{
-    this->_userStatus = status;
-    CCUserDefault::sharedUserDefault()->setIntegerForKey("so_userstatus", this->_userStatus);
-    CCUserDefault::sharedUserDefault()->flush();
-
-}
 /*
  * Remove empty fields from the API string
  */
@@ -180,6 +122,40 @@ std::string Scoreoid::getStringValue(const Value& member, const char* field)
     }
     return returnValue;
 }
+
+std::string Scoreoid::getStringValue(Value::ConstMemberIterator itr,const char* field)
+{
+    std::string value = "";
+    if (itr->value.IsString())
+    {
+        value = itr->value.GetString();
+    }
+    else if (itr->value.IsBool())
+    {
+        if (itr->value.GetBool())
+        {
+            value = "1";
+        }
+        else
+        {
+            value = "0";
+        }
+    }
+    else if (itr->value.IsDouble())
+    {
+        value = CCString::createWithFormat("%f",itr->value.GetDouble())->getCString();
+    }
+    else if (itr->value.IsInt())
+    {
+        value = CCString::createWithFormat("%d",itr->value.GetInt())->getCString();
+    }
+    else if (itr->value.IsInt64())
+    {
+        value = CCString::createWithFormat("%d",itr->value.GetInt64())->getCString();
+    }
+
+    return value;
+}
 bool Scoreoid::getBoolValue(const Value& member, const char* field)
 {
     bool returnValue = false;
@@ -204,7 +180,7 @@ int Scoreoid::getIntValue(const Value& member, const char* field)
     return returnValue;
 }
 
-int Scoreoid::getDoubleValue(const Value& member, const char* field)
+double Scoreoid::getDoubleValue(const Value& member, const char* field)
 {
     double returnValue = -1.0f;
     if (member.HasMember(field) && member[field].IsDouble())
@@ -229,35 +205,42 @@ CCString* Scoreoid::getStringJSON(Value::Member* iterator, const char* field)
     return CCString::create("");
 }
 
-void Scoreoid::HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector)
+bool Scoreoid::HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector)
 {
-    CCHttpRequest* request = new CCHttpRequest();
-    
-    request->setUrl(apiUrl);
-    request->setRequestType(CCHttpRequest::kHttpPost);
-    std::vector<std::string> headers;
-    headers.push_back("application/x-www-form-urlencoded; charset=utf-8");
-    request->setHeaders(headers);
-    request->setResponseCallback(this, pSelector);
-    
-    // write the post data
-    
-    std::string endData = this->removeEmptyFields(data, "&");
-    std::string scoreoid_postdat = SCOREOID_POSTDATA;
-    std::string postData;
-    if (strlen(endData.c_str()) > 0)
+    this->_actionRunning = true;
+    bool returnValue = false;
+    if ( (this->_scoreoidAvailable && !this->_actionRunning) || (this->_currentApiCall == SO_INIT) )
     {
-         postData = scoreoid_postdat + "&" + endData;
+        returnValue = true;
+        CCHttpRequest* request = new CCHttpRequest();
+    
+        request->setUrl(apiUrl);
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("application/x-www-form-urlencoded; charset=utf-8");
+        request->setHeaders(headers);
+        request->setResponseCallback(this, pSelector);
+    
+        // write the post data
+        std::string endData = this->removeEmptyFields(data, "&");
+        std::string scoreoid_postdat = SCOREOID_POSTDATA;
+        std::string postData;
+        if (strlen(endData.c_str()) > 0)
+        {
+            postData = scoreoid_postdat + "&" + endData;
+        }
+        else
+        {
+            postData = scoreoid_postdat;
+        }
+        CCLog("Posting:%s",postData.c_str());
+        request->setRequestData(postData.c_str(), strlen(postData.c_str()));
+        request->setTag(tag);
+        CCHttpClient::getInstance()->send(request);
+        request->release();
     }
-    else
-    {
-        postData = scoreoid_postdat;
-    }
-    CCLog("Posting:%s",postData.c_str());
-    request->setRequestData(postData.c_str(), strlen(postData.c_str()));
-    request->setTag(tag);
-    CCHttpClient::getInstance()->send(request);
-    request->release();
+    
+    return returnValue;
 }
 
 /*
@@ -305,8 +288,8 @@ void Scoreoid::HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data)
         if(document.Parse<0>(s.c_str()).HasParseError() || (document.IsObject() && document.HasMember("error")))
         {
             resultStruct.result = SO_API_ERROR;
-            resultStruct.response = "error";
-            resultStruct.message = document["error"].GetString() ;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
         }
         else if (document.IsArray())
         {
@@ -348,63 +331,21 @@ void Scoreoid::HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data)
                     results->addObject(score);
                 }
             }
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
             
         }
-        //        else if (document.IsObject())
-        //        {
-        //            const Value& member = document;
-        //
-        //            results->setusername(getStringValue(member, "username").c_str());
-        //            results->setunique_id(getStringValue(member, "unique_id").c_str());
-        //            results->setfirst_name(getStringValue(member, "first_name").c_str());
-        //            results->setlast_name(getStringValue(member, "last_name").c_str());
-        //            results->setemail(getStringValue(member, "email").c_str());
-        //            results->setbonus(getIntValue(member, "bonus"));
-        //            results->setachievements(getStringValue(member, "achievements").c_str());
-        //            results->setgold(getIntValue(member, "gold"));
-        //            results->setmoney(getIntValue(member, "money"));
-        //            results->setkills(getIntValue(member, "kills"));
-        //            results->setlives(getIntValue(member, "lives"));
-        //            results->settime_played(getIntValue(member, "time_played"));
-        //            results->setunlocked_levels(getStringValue(member, "unlocked_levels").c_str());
-        //            results->setunlocked_items(getStringValue(member, "unlocked_items").c_str());
-        //            results->setinventory(getStringValue(member, "inventory").c_str());
-        //            results->setlast_level(getStringValue(member, "last_level").c_str());
-        //            results->setcurrent_level(getStringValue(member, "current_level").c_str());
-        //            results->setcurrent_time(getIntValue(member, "current_time"));
-        //            results->setcurrent_bonus(getIntValue(member, "current_bonus"));
-        //            results->setcurrent_kills(getIntValue(member, "current_kills"));
-        //            results->setcurrent_achievements(getStringValue(member, "current_achievements").c_str());
-        //            results->setcurrent_gold(getIntValue(member, "current_gold"));
-        //            results->setcurrent_unlocked_levels(getIntValue(member, "current_unlocked_levels"));
-        //            results->setcurrent_unlocked_items(getStringValue(member, "current_unlocked_items").c_str());
-        //            results->setcurrent_lives(getIntValue(member, "current_lives"));
-        //            results->setxp(getStringValue(member, "xp").c_str());
-        //            results->setenergy(getStringValue(member, "energy").c_str());
-        //            results->setboost(getStringValue(member, "boost").c_str());
-        //            results->setlatitude(getStringValue(member, "latitude").c_str());
-        //            results->setlongtitude(getStringValue(member, "longtitude").c_str());
-        //            results->setgame_state(getStringValue(member, "game_state").c_str());
-        //            results->setplatform(getStringValue(member, "platform").c_str());
-        //            results->setrank(getIntValue(member, "rank"));
-        //            results->setbest_score(getIntValue(member, "best_score"));
-        //            results->setcreated(getStringValue(member, "created").c_str());
-        //            results->setupdated(getStringValue(member, "updated").c_str());
-        //            resultStruct.response = "success";
-        //            resultStruct.message = "" ;
-        //
-        //        }
         else
         {
-            resultStruct.response = "error";
-            resultStruct.message = "" ;
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
             resultStruct.result = SO_API_ERROR;
         }
     }
-    this->_scoreInProgress = false;
     
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     // Callback
     if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
         return delegate->scoresCallback(results, resultStruct);
@@ -458,8 +399,8 @@ void Scoreoid::HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data)
         if(document.Parse<0>(s.c_str()).HasParseError() || (document.IsObject() && document.HasMember("error")))
         {
             resultStruct.result = SO_API_ERROR;
-            resultStruct.response = "error";
-            resultStruct.message = document["error"].GetString() ;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
         }
         else if (document.IsArray())
         {
@@ -494,8 +435,8 @@ void Scoreoid::HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data)
                     
                 }
             }
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
             
         }
         else if (document.IsObject())
@@ -515,15 +456,22 @@ void Scoreoid::HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data)
             results->setplatform(getStringValue(member, "platform").c_str());
             results->setleaderBoard(getStringValue(member, "leaderboard").c_str());
             results->setcreated(getStringValue(member, "created").c_str());
+
+            Value::ConstMemberIterator itr = document.MemberBegin();
+            resultStruct.field = itr->name.GetString();
+            resultStruct.value = this->getStringValue(itr, itr->name.GetString());
+
         }
         else
         {
-            resultStruct.response = "error";
-            resultStruct.message = "" ;
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
             resultStruct.result = SO_API_ERROR;
         }
     }
-    this->_scoreInProgress = false;
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     
     // Callback
     if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
@@ -575,8 +523,8 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
         if(document.Parse<0>(s.c_str()).HasParseError() || (document.IsObject() && document.HasMember("error")))
         {
             resultStruct.result = SO_API_ERROR;
-            resultStruct.response = "error";
-            resultStruct.message = document["error"].GetString() ;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
         }
         else if (document.IsArray())
         {
@@ -625,8 +573,8 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
                     
                 }
             }
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
             
         }
         else if (document.IsObject())
@@ -669,18 +617,22 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
             results->setbest_score(getIntValue(member, "best_score"));
             results->setcreated(getStringValue(member, "created").c_str());
             results->setupdated(getStringValue(member, "updated").c_str());
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+
+            Value::ConstMemberIterator itr = document.MemberBegin();
+            resultStruct.field = itr->name.GetString();
+            resultStruct.value = this->getStringValue(itr, itr->name.GetString());
             
         }
         else
         {
-            resultStruct.response = "error";
-            resultStruct.message = "" ;
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
             resultStruct.result = SO_API_ERROR;
         }
     }
-    this->_scoreInProgress = false;
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     
     // Callback
     if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
@@ -734,8 +686,8 @@ void Scoreoid::HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data)
         if(document.Parse<0>(s.c_str()).HasParseError() || (document.IsObject() && document.HasMember("error")))
         {
             resultStruct.result = SO_API_ERROR;
-            resultStruct.response = "error";
-            resultStruct.message = document["error"].GetString() ;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
         }
         else if (document.IsArray())
         {
@@ -787,62 +739,20 @@ void Scoreoid::HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data)
                     results->addObject(player);
                 }
             }
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
             
         }
-//        else if (document.IsObject())
-//        {
-//            const Value& member = document;
-//            
-//            results->setusername(getStringValue(member, "username").c_str());
-//            results->setunique_id(getStringValue(member, "unique_id").c_str());
-//            results->setfirst_name(getStringValue(member, "first_name").c_str());
-//            results->setlast_name(getStringValue(member, "last_name").c_str());
-//            results->setemail(getStringValue(member, "email").c_str());
-//            results->setbonus(getIntValue(member, "bonus"));
-//            results->setachievements(getStringValue(member, "achievements").c_str());
-//            results->setgold(getIntValue(member, "gold"));
-//            results->setmoney(getIntValue(member, "money"));
-//            results->setkills(getIntValue(member, "kills"));
-//            results->setlives(getIntValue(member, "lives"));
-//            results->settime_played(getIntValue(member, "time_played"));
-//            results->setunlocked_levels(getStringValue(member, "unlocked_levels").c_str());
-//            results->setunlocked_items(getStringValue(member, "unlocked_items").c_str());
-//            results->setinventory(getStringValue(member, "inventory").c_str());
-//            results->setlast_level(getStringValue(member, "last_level").c_str());
-//            results->setcurrent_level(getStringValue(member, "current_level").c_str());
-//            results->setcurrent_time(getIntValue(member, "current_time"));
-//            results->setcurrent_bonus(getIntValue(member, "current_bonus"));
-//            results->setcurrent_kills(getIntValue(member, "current_kills"));
-//            results->setcurrent_achievements(getStringValue(member, "current_achievements").c_str());
-//            results->setcurrent_gold(getIntValue(member, "current_gold"));
-//            results->setcurrent_unlocked_levels(getIntValue(member, "current_unlocked_levels"));
-//            results->setcurrent_unlocked_items(getStringValue(member, "current_unlocked_items").c_str());
-//            results->setcurrent_lives(getIntValue(member, "current_lives"));
-//            results->setxp(getStringValue(member, "xp").c_str());
-//            results->setenergy(getStringValue(member, "energy").c_str());
-//            results->setboost(getStringValue(member, "boost").c_str());
-//            results->setlatitude(getStringValue(member, "latitude").c_str());
-//            results->setlongtitude(getStringValue(member, "longtitude").c_str());
-//            results->setgame_state(getStringValue(member, "game_state").c_str());
-//            results->setplatform(getStringValue(member, "platform").c_str());
-//            results->setrank(getIntValue(member, "rank"));
-//            results->setbest_score(getIntValue(member, "best_score"));
-//            results->setcreated(getStringValue(member, "created").c_str());
-//            results->setupdated(getStringValue(member, "updated").c_str());
-//            resultStruct.response = "success";
-//            resultStruct.message = "" ;
-//            
-//        }
         else
         {
-            resultStruct.response = "error";
-            resultStruct.message = "" ;
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
             resultStruct.result = SO_API_ERROR;
         }
     }
-    this->_scoreInProgress = false;
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     
     // Callback
     if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
@@ -897,8 +807,8 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
         if(document.Parse<0>(s.c_str()).HasParseError() || (document.IsObject() && document.HasMember("error")))
         {
             resultStruct.result = SO_API_ERROR;
-            resultStruct.response = "error";
-            resultStruct.message = document["error"].GetString() ;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
         }
         else if (document.IsArray())
         {
@@ -926,8 +836,8 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
                             
                         }
                     }
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
             
         }
         else if (document.IsObject())
@@ -949,26 +859,42 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
             results->setstatus(getIntValue(member, "status"));
             results->setcreated(getStringValue(member, "created").c_str());
             results->setupdated(getStringValue(member, "updated").c_str());
-            resultStruct.response = "success";
-            resultStruct.message = "" ;
-            
+
+            Value::ConstMemberIterator itr = document.MemberBegin();
+            resultStruct.field = itr->name.GetString();
+            resultStruct.value = this->getStringValue(itr, itr->name.GetString());
         }
         else
         {
-            resultStruct.response = "error";
-            resultStruct.message = "" ;
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
             resultStruct.result = SO_API_ERROR;
         }
     }
-    this->_scoreInProgress = false;
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     
-    // Callback
-    if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
-        return delegate->gameCallback(results, resultStruct);
+    if(!this->_scoreoidAvailable && resultStruct.apiCallCode == SO_INIT)
+    {
+        this->_scoreoidAvailable = true;
+        // Callback
+        if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
+            return delegate->scoreoidAvailable(results, resultStruct);
+        }
     }
-    
+    else
+    {
+        // Callback
+        if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
+        return delegate->gameCallback(results, resultStruct);
+        }
+    }
 }
 
+/*
+ * Handle notifications
+ */
 void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *data)
 {
     SOResult resultStruct;
@@ -1011,14 +937,14 @@ void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *d
     if(document.Parse<0>(s.c_str()).HasParseError())
     {
         result = SO_API_ERROR;
-        resultStruct.response = "error";
-        resultStruct.message = document["error"].GetString() ;
+        resultStruct.field = "error";
+        resultStruct.value = document["error"].GetString() ;
     }
     else if (document.IsObject() && document.HasMember("error"))
     {
         result = SO_API_ERROR;
-        resultStruct.response = "error";
-        resultStruct.message = document["error"].GetString() ;
+        resultStruct.field = "error";
+        resultStruct.value = document["error"].GetString() ;
     }
     else if (document.IsObject() && document.HasMember("notifications"))
     {
@@ -1046,17 +972,20 @@ void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *d
                     }
             }
         }
-        resultStruct.response = "success";
-        resultStruct.message = "" ;
+        resultStruct.field = "success";
+        resultStruct.value = "" ;
     }
     else
     {
-        resultStruct.response = "error";
-        resultStruct.message = "" ;
+        resultStruct.field = "error";
+        resultStruct.value = "" ;
         result = SO_API_ERROR;
     }
     }
-    this->_scoreInProgress = false;
+
+    resultStruct.apiCallCode = this->_currentApiCall;
+    this->_currentApiCall = SO_NOTHING;
+    this->_actionRunning = false;
     
     resultStruct.result = result;
     resultStruct.apiCall = response->getHttpRequest()->getTag();
@@ -1072,16 +1001,8 @@ void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *d
  */
 bool Scoreoid::getNotification() //method lets you pull your game’s in game notifications.
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        this->HttpRequest("http://www.scoreoid.com/api/getNotification", "","getNotification",callfuncND_selector(Scoreoid::HttpRequestNotificationsCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;
+    this->_currentApiCall = SO_GETNOTIFICATION;
+    return this->HttpRequest("http://www.scoreoid.com/api/getNotification", "","getNotification",callfuncND_selector(Scoreoid::HttpRequestNotificationsCallback));
 }
 
 /*
@@ -1093,18 +1014,9 @@ bool Scoreoid::getNotification() //method lets you pull your game’s in game no
  */
 bool Scoreoid::getGameTotal(const char* field, const char* start_date, const char* end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/getGameTotal", result->getCString(),"getGameTotal",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETGAMETOTAL;
+    CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/getGameTotal", result->getCString(),"getGameTotal",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1116,17 +1028,9 @@ bool Scoreoid::getGameTotal(const char* field, const char* start_date, const cha
  */
 bool Scoreoid::getGameLowest(const char* field, const char* start_date, const char* end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/getGameLowest", result->getCString(),"getGameLowest",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETGAMELOWEST;
+    CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/getGameLowest", result->getCString(),"getGameLowest",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1138,17 +1042,9 @@ bool Scoreoid::getGameLowest(const char* field, const char* start_date, const ch
  */
 bool Scoreoid::getGameTop(const char* field, const char* start_date, const char* end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/getGameTop", result->getCString(),"getGameTop",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETGAMETOTAL;
+    CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/getGameTop", result->getCString(),"getGameTop",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1160,17 +1056,9 @@ bool Scoreoid::getGameTop(const char* field, const char* start_date, const char*
  */
 bool Scoreoid::getGameAverage(const char* field, const char* start_date, const char* end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/getGameAverage", result->getCString(),"getGameAverage",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETGAMEAVERAGE;
+    CCString* result = CCString::createWithFormat("field=%s&start_date=%s&end_date=%s&platform=%s",field,start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/getGameAverage", result->getCString(),"getGameAverage",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1184,17 +1072,9 @@ bool Scoreoid::getGameAverage(const char* field, const char* start_date, const c
  */
 bool Scoreoid::getPlayers(const char* order_by, const char* order, const char* limit, const char* start_date, const char* end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s",order_by,order,limit,start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/getPlayers", result->getCString(),"getPlayers",callfuncND_selector(Scoreoid::HttpRequestPlayersCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETPLAYERS;
+    CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s",order_by,order,limit,start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayers", result->getCString(),"getPlayers",callfuncND_selector(Scoreoid::HttpRequestPlayersCallback));
 }
 
 /*
@@ -1204,17 +1084,9 @@ bool Scoreoid::getPlayers(const char* order_by, const char* order, const char* l
  */
 bool Scoreoid::getGameField(const char* field)
 {
-    if (this->_scoreoidAvailable && !this->_gameInProgress)
-    {
-        this->_gameInProgress = true;
-        CCString* result = CCString::createWithFormat("field=%s",field);
-        this->HttpRequest("http://www.scoreoid.com/api/getGameField", result->getCString(),"getGameField",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETGAMEFIELD;
+    CCString* result = CCString::createWithFormat("field=%s",field);
+    return this->HttpRequest("http://www.scoreoid.com/api/getGameField", result->getCString(),"getGameField",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1222,16 +1094,11 @@ bool Scoreoid::getGameField(const char* field)
  */
 bool Scoreoid::getGame()
 {
-   // if (this->_scoreoidAvailable && !this->_gameInProgress)
+    if (this->_currentApiCall != SO_INIT)
     {
-       // this->_gameInProgress = true;
-        this->HttpRequest("http://www.scoreoid.com/api/getGame", "","getGame",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
+        this->_currentApiCall = SO_GETGAME;
     }
-  //  else
- //   {
- //       return false;
- //   }
-    return true;    
+    return this->HttpRequest("http://www.scoreoid.com/api/getGame", "","getGame",callfuncND_selector(Scoreoid::HttpRequestGameCallback));
 }
 
 /*
@@ -1244,17 +1111,9 @@ bool Scoreoid::getGame()
  */
 bool Scoreoid::getPlayerField(const char* username,const char* field)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&field=%s",username,field);
-        this->HttpRequest("http://www.scoreoid.com/api/getPlayerField", result->getCString(),"getPlayerField",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;
+    this->_currentApiCall = SO_GETPLAYERFIELD;
+    CCString* result = CCString::createWithFormat("username=%s&field=%s",username,field);
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayerField", result->getCString(),"getPlayerField",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1266,17 +1125,9 @@ bool Scoreoid::getPlayerField(const char* username,const char* field)
  */
 bool Scoreoid::getPlayerScores(const char* username, const char* start_date, const char* end_date, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&start_date=%s&end_date=%s&difficulty=%s",username,start_date,end_date,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/getPlayerScores", result->getCString(),"getPlayerScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETPLAYERSCORES;
+    CCString* result = CCString::createWithFormat("username=%s&start_date=%s&end_date=%s&difficulty=%s",username,start_date,end_date,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayerScores", result->getCString(),"getPlayerScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
 }
 
 /*
@@ -1285,17 +1136,9 @@ bool Scoreoid::getPlayerScores(const char* username, const char* start_date, con
  */
 bool Scoreoid::deletePlayer(const char* username)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s",username);
-        this->HttpRequest("http://www.scoreoid.com/api/deletePlayer", result->getCString(),"deletePlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_DELETEPLAYER;
+    CCString* result = CCString::createWithFormat("username=%s",username);
+    return this->HttpRequest("http://www.scoreoid.com/api/deletePlayer", result->getCString(),"deletePlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1307,17 +1150,9 @@ bool Scoreoid::deletePlayer(const char* username)
  */
 bool Scoreoid::getPlayer(const char* username, const char* id, const char* password, const char* email)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s",username,id,password,email);
-        this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETPLAYER;
+    CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s",username,id,password,email);
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1329,17 +1164,9 @@ bool Scoreoid::getPlayer(const char* username, const char* id, const char* passw
  */
 bool Scoreoid::editPlayer(const char* username, const char* fields)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&%s",username,fields);
-        this->HttpRequest("http://www.scoreoid.com/api/editPlayer", result->getCString(),"editPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_EDITPLAYER;
+    CCString* result = CCString::createWithFormat("username=%s&%s",username,fields);
+    return this->HttpRequest("http://www.scoreoid.com/api/editPlayer", result->getCString(),"editPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1350,17 +1177,9 @@ bool Scoreoid::editPlayer(const char* username, const char* fields)
  */
 bool Scoreoid::countPlayers(const char* start_date, const char*end_date, const char* platform)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s",start_date,end_date,platform);
-        this->HttpRequest("http://www.scoreoid.com/api/countPlayers", result->getCString(),"countPlayers",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_COUNTPLAYERS;
+    CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s",start_date,end_date,platform);
+    return this->HttpRequest("http://www.scoreoid.com/api/countPlayers", result->getCString(),"countPlayers",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1371,17 +1190,9 @@ bool Scoreoid::countPlayers(const char* start_date, const char*end_date, const c
  */
 bool Scoreoid::updatePlayerField(const char* username, const char* field, const char* value)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&field=%s&value=%s",username,field,value);
-        this->HttpRequest("http://www.scoreoid.com/api/updatePlayerField", result->getCString(),"updatePlayerField",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_UPDATEPLAYERFIELD;
+    CCString* result = CCString::createWithFormat("username=%s&field=%s&value=%s",username,field,value);
+    return this->HttpRequest("http://www.scoreoid.com/api/updatePlayerField", result->getCString(),"updatePlayerField",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1392,17 +1203,9 @@ bool Scoreoid::updatePlayerField(const char* username, const char* field, const 
  */
 bool Scoreoid::createPlayer(const char* username, const char* fields)
 {
-    if (this->_scoreoidAvailable && !this->_playerInProgress)
-    {
-        this->_playerInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&fields",username,fields);
-        this->HttpRequest("http://www.scoreoid.com/api/createPlayer", result->getCString(),"createPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_CREATEPLAYER;
+    CCString* result = CCString::createWithFormat("username=%s&fields",username,fields);
+    return this->HttpRequest("http://www.scoreoid.com/api/createPlayer", result->getCString(),"createPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 /*
@@ -1414,17 +1217,9 @@ bool Scoreoid::createPlayer(const char* username, const char* fields)
  */
 bool Scoreoid::countBestScores(const char* start_date, const char*end_date, const char* platform, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/countBestScores", result->getCString(),"countBestScores",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall =  SO_COUNTBESTSCORES;
+    CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/countBestScores", result->getCString(),"countBestScores",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
 }
 
 /*
@@ -1436,17 +1231,9 @@ bool Scoreoid::countBestScores(const char* start_date, const char*end_date, cons
  */
 bool Scoreoid::getAverageScore(const char* start_date, const char*end_date, const char* platform, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/getAverageScore", result->getCString(),"getAverageScore",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;
+    this->_currentApiCall = SO_GETAVERAGESCORE;
+    CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/getAverageScore", result->getCString(),"getAverageScore",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
 }
 
 /*
@@ -1460,17 +1247,9 @@ bool Scoreoid::getAverageScore(const char* start_date, const char*end_date, cons
  difficulty => Integer Value, between 1 to 10 (don't use 0 as it's the default value) [Optional]     */
 bool Scoreoid::getBestScores(const char* order_by, const char* order, const char* limit,const char* start_date, const char*end_date, const char* platform, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s&difficulty=%s",order_by,order,limit,start_date,end_date,platform,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/getBestScores", result->getCString(),"getBestScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETBESTSCORES;
+    CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s&difficulty=%s",order_by,order,limit,start_date,end_date,platform,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/getBestScores", result->getCString(),"getBestScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
 }
 
 /*
@@ -1482,17 +1261,9 @@ bool Scoreoid::getBestScores(const char* order_by, const char* order, const char
  */
 bool Scoreoid::countScores(const char* start_date, const char*end_date, const char* platform, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/countScores", result->getCString(),"countScores",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_COUNTSCORES;
+    CCString* result = CCString::createWithFormat("start_date=%s&end_date=%s&platform=%s&difficulty=%s",start_date,end_date,platform,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/countScores", result->getCString(),"countScores",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
 }
 
 /*
@@ -1507,17 +1278,9 @@ bool Scoreoid::countScores(const char* start_date, const char*end_date, const ch
  */
 bool Scoreoid::getScores(const char* order_by, const char* order, const char* limit,const char* start_date, const char*end_date, const char* platform, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s&difficulty=%s",order_by,order,limit,start_date,end_date,platform,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/getScores", result->getCString(),"getScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_GETSCORES;
+    CCString* result = CCString::createWithFormat("order_by=%s&order=%s&limit=%s&start_date=%s&end_date=%s&platform=%s&difficulty=%s",order_by,order,limit,start_date,end_date,platform,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/getScores", result->getCString(),"getScores",callfuncND_selector(Scoreoid::HttpRequestScoresCallback));
 }
 
 /*
@@ -1530,23 +1293,27 @@ bool Scoreoid::getScores(const char* order_by, const char* order, const char* li
  */
 bool Scoreoid::createScore(const char* username, const char* score, const char* platform, const char* unique_id, const char* difficulty)
 {
-    if (this->_scoreoidAvailable && !this->_scoreInProgress)
-    {
-        this->_scoreInProgress = true;
-        CCString* result = CCString::createWithFormat("username=%s&score=%s&platform=%s&unique_id=%s&difficulty=%s",username,score,platform,unique_id,difficulty);
-        this->HttpRequest("http://www.scoreoid.com/api/createScore", result->getCString(),"createScore",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
-    }
-    else
-    {
-        return false;
-    }
-    return true;    
+    this->_currentApiCall = SO_CREATESCORE;
+    CCString* result = CCString::createWithFormat("username=%s&score=%s&platform=%s&unique_id=%s&difficulty=%s",username,score,platform,unique_id,difficulty);
+    return this->HttpRequest("http://www.scoreoid.com/api/createScore", result->getCString(),"createScore",callfuncND_selector(Scoreoid::HttpRequestScoreCallback));
 }
 
 /*
  * Login the player or create a new one
  */
-bool Scoreoid::login(bool createPlayer)
+bool Scoreoid::login(const char* playerID)
 {
-    return true;
+    this->_currentApiCall = SO_LOGIN;
+    CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s","",playerID,"","");
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));    
+}
+
+// LoginPlayerHandler()
+void Scoreoid::loginPlayerHandler()
+{
+    
+}
+void Scoreoid::loginCreatePlayerHandler()
+{
+    
 }

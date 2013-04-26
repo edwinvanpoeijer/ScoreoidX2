@@ -220,9 +220,12 @@
 		159A86271720788800746C2E /* cocos2dx-ext_public.defines.txt in Resources */ = {isa = PBXBuildFile; fileRef = 159A86261720788800746C2E /* cocos2dx-ext_public.defines.txt */; };
 		159A862D1720788800746C2E /* AppDelegate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 159A862C1720788800746C2E /* AppDelegate.cpp */; };
 		159A86301720788800746C2E /* HelloWorldScene.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 159A862F1720788800746C2E /* HelloWorldScene.cpp */; };
+		159A863D172078B100746C2E /* Scoreoid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 159A8639172078B100746C2E /* Scoreoid.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1561650C1722C13B007F479E /* ScoreoidObjects.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScoreoidObjects.h; sourceTree = "<group>"; };
+		1561650E1723ED11007F479E /* ScoreoidAPI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScoreoidAPI.h; sourceTree = "<group>"; };
 		159A83491720788500746C2E /* ScoreoidX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreoidX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		159A834C1720788500746C2E /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		159A834E1720788500746C2E /* OpenGLES.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGLES.framework; path = System/Library/Frameworks/OpenGLES.framework; sourceTree = SDKROOT; };
@@ -690,6 +693,18 @@
 		159A862C1720788800746C2E /* AppDelegate.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = AppDelegate.cpp; path = Classes/AppDelegate.cpp; sourceTree = "<group>"; };
 		159A862E1720788800746C2E /* HelloWorldScene.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = HelloWorldScene.h; path = Classes/HelloWorldScene.h; sourceTree = "<group>"; };
 		159A862F1720788800746C2E /* HelloWorldScene.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = HelloWorldScene.cpp; path = Classes/HelloWorldScene.cpp; sourceTree = "<group>"; };
+		159A8639172078B100746C2E /* Scoreoid.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Scoreoid.cpp; sourceTree = "<group>"; };
+		159A863A172078B100746C2E /* Scoreoid.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Scoreoid.h; sourceTree = "<group>"; };
+		159A8640172079EA00746C2E /* document.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = document.h; sourceTree = "<group>"; };
+		159A8641172079EA00746C2E /* filestream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filestream.h; sourceTree = "<group>"; };
+		159A8643172079EA00746C2E /* pow10.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pow10.h; sourceTree = "<group>"; };
+		159A8644172079EA00746C2E /* stack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stack.h; sourceTree = "<group>"; };
+		159A8645172079EA00746C2E /* strfunc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = strfunc.h; sourceTree = "<group>"; };
+		159A8646172079EA00746C2E /* prettywriter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = prettywriter.h; sourceTree = "<group>"; };
+		159A8647172079EA00746C2E /* rapidjson.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rapidjson.h; sourceTree = "<group>"; };
+		159A8648172079EA00746C2E /* reader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = reader.h; sourceTree = "<group>"; };
+		159A8649172079EA00746C2E /* stringbuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stringbuffer.h; sourceTree = "<group>"; };
+		159A864A172079EA00746C2E /* writer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = writer.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1690,12 +1705,50 @@
 		159A862A1720788800746C2E /* Classes */ = {
 			isa = PBXGroup;
 			children = (
+				159A863F172079EA00746C2E /* rapidjson */,
+				159A8636172078B100746C2E /* Scoreoid */,
 				159A862B1720788800746C2E /* AppDelegate.h */,
 				159A862C1720788800746C2E /* AppDelegate.cpp */,
 				159A862E1720788800746C2E /* HelloWorldScene.h */,
 				159A862F1720788800746C2E /* HelloWorldScene.cpp */,
 			);
 			name = Classes;
+			sourceTree = "<group>";
+		};
+		159A8636172078B100746C2E /* Scoreoid */ = {
+			isa = PBXGroup;
+			children = (
+				159A8639172078B100746C2E /* Scoreoid.cpp */,
+				159A863A172078B100746C2E /* Scoreoid.h */,
+				1561650C1722C13B007F479E /* ScoreoidObjects.h */,
+				1561650E1723ED11007F479E /* ScoreoidAPI.h */,
+			);
+			path = Scoreoid;
+			sourceTree = "<group>";
+		};
+		159A863F172079EA00746C2E /* rapidjson */ = {
+			isa = PBXGroup;
+			children = (
+				159A8640172079EA00746C2E /* document.h */,
+				159A8641172079EA00746C2E /* filestream.h */,
+				159A8642172079EA00746C2E /* internal */,
+				159A8646172079EA00746C2E /* prettywriter.h */,
+				159A8647172079EA00746C2E /* rapidjson.h */,
+				159A8648172079EA00746C2E /* reader.h */,
+				159A8649172079EA00746C2E /* stringbuffer.h */,
+				159A864A172079EA00746C2E /* writer.h */,
+			);
+			path = rapidjson;
+			sourceTree = "<group>";
+		};
+		159A8642172079EA00746C2E /* internal */ = {
+			isa = PBXGroup;
+			children = (
+				159A8643172079EA00746C2E /* pow10.h */,
+				159A8644172079EA00746C2E /* stack.h */,
+				159A8645172079EA00746C2E /* strfunc.h */,
+			);
+			path = internal;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1961,6 +2014,7 @@
 				159A86211720788800746C2E /* CCPhysicsSprite.cpp in Sources */,
 				159A862D1720788800746C2E /* AppDelegate.cpp in Sources */,
 				159A86301720788800746C2E /* HelloWorldScene.cpp in Sources */,
+				159A863D172078B100746C2E /* Scoreoid.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2094,6 +2148,7 @@
 				159A86351720788800746C2E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

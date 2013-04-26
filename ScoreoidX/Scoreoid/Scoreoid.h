@@ -63,9 +63,8 @@ public:
     virtual void gameCallback(SOGame* game,SOResult result) {}
     virtual void notificationsCallback(CCArray* notifications,SOResult result) {}
     
-    
-    virtual void scoreoidAvailable(CCDictionary* returnDictionary,const char* apiCall,int& result) {}
-    
+    virtual void scoreoidAvailable(SOGame* game,SOResult result) {}
+    virtual void playerLoginReady(SOResult result) {}
 };
 
 /*
@@ -82,38 +81,21 @@ private:
     /*
      * Scoreoid Game and API keys
      */
-    CCString* _gameID;
-    CCString* _ApiKey;
+    std::string _gameID;
+    std::string _ApiKey;
 
     /*
-     * booleans for running actions
+     *  running actions
      */
-    bool _scoreInProgress;
-    bool _playerInProgress;
-    bool _gameInProgress;
-    
-    /*
-     * CCDictionary for the apiDictionary
-     */
-    CCDictionary* apiDictionary;
-
-    /*
-     * Local player
-     */
-    std::string _localPlayerID;
-    std::string _localPlayerFirstName;
-    std::string _localPlayerLastName;
-    enum LoginStatus {IDLE,GETPLAYER,CREATEPLAYER,PLAYERCREATED,UPDATENEWPLAYER,READY};
-    bool _shouldCreateNewPlayer;
-    LoginStatus loginStatus;
-    CCDictionary* localPlayer;
-    
-    /*
-     * Scoreoid authentication
-     */
-    int _userStatus;
     bool _scoreoidAvailable;
-    bool _userAuthenticated;
+    bool _actionRunning;
+    int  _currentApiCall;
+    
+    /*
+     * Local user
+     */
+    std::string _localUserId;
+    bool _createUser;
     
     // Private constructor
 	/** allocates and initializes a object.
@@ -141,63 +123,43 @@ public:
     void setDelegate(ScoreoidDelegate* delegate) { m_delegate = delegate; }
     ScoreoidDelegate* getDelegate() { return m_delegate; }
 
-
+    /*
+     * Init Scoreoid
+     */
+    void initScoreoid(const char* gameID, const char* apiKey);
+    
     /*
      * JSON Helpers
      */
     std::string getStringValue(const Value& member, const char* field);
+    std::string getStringValue(Value::ConstMemberIterator itr,const char* field);
     bool getBoolValue(const Value& member, const char* field);
     int getIntValue(const Value& member, const char* field);
-    int getDoubleValue(const Value& member, const char* field);
+    double getDoubleValue(const Value& member, const char* field);
 
     /*
      * Helper methods
      */
     CCString* getStringJSON(Value::Member *iterator, const char* field);
     const char* removeEmptyFields(const char* value, std::string delimiter);
-    int getUserStatus() { return this->_userStatus;};
-    void setUserStatus(int status);// { this->_userStatus = status; };
     
-    /*
-     * Local player
-     */
-    CCDictionary* getLocalPlayer();
-    bool setLocalPlayer(CCDictionary* localPlayer);
-    const char* getLocalPlayerID() { return this->_localPlayerID.c_str();};
-    void setLocalPlayerID (const char* playerID);
-    const char* getFirstName() { return this->_localPlayerFirstName.c_str();};
-    void setFirstName(const char* name) { this->_localPlayerFirstName = name;};
-    const char* getLastName() { return this->_localPlayerLastName.c_str();};
-    void setLastName(const char* name) { this->_localPlayerLastName = name;};
     
-    /*
-     * Scoreoid authentication
-     */
-    bool scoreoidAvailable() { return this->_scoreoidAvailable;};
-    bool userAuthenticated() { return this->_userAuthenticated;};
-
     /*
      * Methods
      */
     
     // Http request and response handles
-    void HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector);
+    bool HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector);
+    
     void HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data);
-    void HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data);
-    
-    void HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data); //done
-    void HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data);
-    void HttpRequestGameCallback(cocos2d::CCNode *sender, void *data); // done
-    
-    void HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *data); // done
+    void HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data);    
+    void HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data);
+    void HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data);    
+    void HttpRequestGameCallback(cocos2d::CCNode *sender, void *data);    
+    void HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *data);
         
-    std::string handleHttpResult(cocos2d::extension::CCHttpResponse* response);
-    
-    bool scoreInProgress();
-    bool playerInProgress();
-    bool gameInProgress();
     /*
-        Gets notifications for this game
+     *   Gets notifications for this game
      */
     bool getNotification(); //method lets you pull your game’s in game notifications.
     //void handleGetNotification(const char* jsonData,int& result);
@@ -391,8 +353,14 @@ public:
      * Login using an ID, if needed the user can be created; returns the player description
      * set createPlayer to TRUE if you want to create the player when the player is unknown.
      */
-    bool login(bool createPlayer);
+    bool login(const char* playerID);
     
+    /*
+     * Local login handlers
+     */
+    void loginPlayerHandler();
+    void loginCreatePlayerHandler();
+
  };
 
 

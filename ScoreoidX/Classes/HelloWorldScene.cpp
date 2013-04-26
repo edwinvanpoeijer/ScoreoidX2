@@ -71,6 +71,25 @@ bool HelloWorld::init()
     // add the sprite as a child to this layer
     this->addChild(pSprite, 0);
     
+    Scoreoid* scoreoid = Scoreoid::GetInstance();
+    scoreoid->setDelegate(this);
+    scoreoid->initScoreoid("dbe776b87a", "0a9343a30a7a1a3a8095610a64b70334b09295bb");
+    //scoreoid->getNotification();
+    //scoreoid->getPlayer("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "", "", "");
+    //scoreoid->getPlayerField("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "last_name");
+    //scoreoid->updatePlayerField("newPlayer", "last_name", "achternaam");
+    //scoreoid->getPlayers("date", "asc", "100", "", "", "");
+    
+    //scoreoid->createScore("Edwin", "55000", "", "", "");
+    //scoreoid->countScores("", "", "", "");
+    //scoreoid->countBestScores("", "", "", "");
+    //scoreoid->getAverageScore("", "", "", "");
+    
+    //scoreoid->getScores("", "", "", "", "", "", "");
+    //scoreoid->getBestScores("", "", "", "", "", "", "");
+    //scoreoid->getPlayerScores("Edwin", "", "", "");
+    
+    //scoreoid->getGameAverage("score", "", "", "");
     return true;
 }
 
@@ -82,3 +101,90 @@ void HelloWorld::menuCloseCallback(CCObject* pSender)
     exit(0);
 #endif
 }
+
+void HelloWorld::notificationsCallback(CCArray* notifications,SOResult resultStruct)
+{
+    CCLog("NOTIFICATIONS CALLBACK");
+    CCLog("API call:%s with APIcode:%d",resultStruct.apiCall.c_str(),resultStruct.apiCallCode);
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+    else
+    {
+        CCLog("%d results received",notifications->count());
+    }
+ }
+
+void HelloWorld::scoreoidAvailable(SOGame* game,SOResult resultStruct)
+{
+    CCLog("SCOREOID AVAILABLE");
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+}
+
+
+void HelloWorld::scoreCallback(SOScore* score,SOResult resultStruct)
+{
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+}
+
+void HelloWorld::scoresCallback(CCArray* scores,SOResult resultStruct)
+{
+    CCLog("SCORES CALLBACK");
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+    else
+    {
+        CCLog("%d results received",scores->count());
+    }
+}
+
+void HelloWorld::playerCallback(SOPlayer* player,SOResult resultStruct)
+{
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+}
+
+void HelloWorld::playersCallback(CCArray* players,SOResult resultStruct)
+{
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+    else
+    {
+        CCLog("%d results received",players->count());
+    }
+}
+
+void HelloWorld::gameCallback(SOGame* game,SOResult resultStruct)
+{
+    CCLog("API call:%s",resultStruct.apiCall.c_str());
+    CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
+    if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
+    {
+        CCLog("Error executing API call");
+    }
+}
+
