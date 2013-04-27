@@ -71,7 +71,8 @@ bool HelloWorld::init()
     // add the sprite as a child to this layer
     this->addChild(pSprite, 0);
     
-    Scoreoid* scoreoid = Scoreoid::GetInstance();
+    this->scoreoid = Scoreoid::GetInstance();
+    
     scoreoid->setDelegate(this);
     scoreoid->initScoreoid("dbe776b87a", "0a9343a30a7a1a3a8095610a64b70334b09295bb");
     //scoreoid->getNotification();
@@ -126,6 +127,10 @@ void HelloWorld::scoreoidAvailable(SOGame* game,SOResult resultStruct)
     {
         CCLog("Error executing API call");
     }
+    else
+    {
+        CCLog("APICALL result:%d",scoreoid->login("dezebestaatniet1",true));
+    }
 }
 
 
@@ -156,11 +161,16 @@ void HelloWorld::scoresCallback(CCArray* scores,SOResult resultStruct)
 
 void HelloWorld::playerCallback(SOPlayer* player,SOResult resultStruct)
 {
+    CCLOG("PLAYER CALLBACK!!!");
     CCLog("API call:%s",resultStruct.apiCall.c_str());
     CCLog("Result:%s  Description:%s",resultStruct.field.c_str(),resultStruct.value.c_str());
     if (resultStruct.result == SO_API_FAIL || resultStruct.result == SO_API_ERROR)
     {
         CCLog("Error executing API call");
+    }
+    else if (resultStruct.apiCallCode == SO_LOGIN)
+    {
+        CCLog("USER LOGGED IN!");
     }
 }
 

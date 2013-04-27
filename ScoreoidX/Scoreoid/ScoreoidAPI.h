@@ -61,7 +61,7 @@ using namespace cocos2d;
 
 // Login
 #define SO_LOGIN 23
-#define SO_CREATEUSER 24
+#define SO_LOGIN_CREATEUSER 24
 
 
 

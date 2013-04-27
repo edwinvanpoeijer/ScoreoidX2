@@ -353,13 +353,13 @@ public:
      * Login using an ID, if needed the user can be created; returns the player description
      * set createPlayer to TRUE if you want to create the player when the player is unknown.
      */
-    bool login(const char* playerID);
+    bool login(const char* playerID, bool shoudCreate);
     
     /*
      * Local login handlers
      */
-    void loginPlayerHandler();
-    void loginCreatePlayerHandler();
+    void loginPlayerHandler(SOPlayer* player,SOResult result);
+    void loginCreatePlayerHandler(SOPlayer* player,SOResult result);
 
  };
 

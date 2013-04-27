@@ -207,10 +207,10 @@ CCString* Scoreoid::getStringJSON(Value::Member* iterator, const char* field)
 
 bool Scoreoid::HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector)
 {
-    this->_actionRunning = true;
     bool returnValue = false;
     if ( (this->_scoreoidAvailable && !this->_actionRunning) || (this->_currentApiCall == SO_INIT) )
     {
+        this->_actionRunning = true;
         returnValue = true;
         CCHttpRequest* request = new CCHttpRequest();
     
@@ -633,10 +633,20 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
     resultStruct.apiCallCode = this->_currentApiCall;
     this->_currentApiCall = SO_NOTHING;
     this->_actionRunning = false;
-    
+    if (resultStruct.apiCallCode == SO_LOGIN)
+    {
+        this->loginPlayerHandler(results, resultStruct);
+    }
+    else if (resultStruct.apiCallCode == SO_LOGIN_CREATEUSER)
+    {
+        this->loginCreatePlayerHandler(results, resultStruct);
+    }
+    else
+    {
     // Callback
     if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
         return delegate->playerCallback(results, resultStruct);
+    }
     }
     
 }
@@ -1301,19 +1311,38 @@ bool Scoreoid::createScore(const char* username, const char* score, const char* 
 /*
  * Login the player or create a new one
  */
-bool Scoreoid::login(const char* playerID)
+bool Scoreoid::login(const char* playerID,bool shouldCreate)
 {
     this->_currentApiCall = SO_LOGIN;
-    CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s","",playerID,"","");
+    this->_createUser = shouldCreate;
+    this->_localUserId = playerID;
+    CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s",playerID,"","","");
     return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));    
 }
 
 // LoginPlayerHandler()
-void Scoreoid::loginPlayerHandler()
+void Scoreoid::loginPlayerHandler(SOPlayer* player,SOResult result)
 {
+    CCLOG("Player login :%d",result.result);
+    if (result.value.compare("Player not found") == 0 && this->_createUser)
+    {
+        CCLOG("Player not found!");
+        this->_currentApiCall = SO_LOGIN_CREATEUSER;
+        CCString* result = CCString::createWithFormat("username=%s&fields",this->_localUserId.c_str(),"");
+        this->HttpRequest("http://www.scoreoid.com/api/createPlayer", result->getCString(),"createPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
+        
+    }
+    else
+    {
+        // Callback
+        if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
+            return delegate->playerCallback(player, result);
+        }
+
+    }
     
 }
-void Scoreoid::loginCreatePlayerHandler()
+void Scoreoid::loginCreatePlayerHandler(SOPlayer* player,SOResult result)
 {
-    
+    this->login(this->_localUserId.c_str(), false);
 }
