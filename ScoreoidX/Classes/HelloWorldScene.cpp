@@ -74,7 +74,7 @@ bool HelloWorld::init()
     this->scoreoid = Scoreoid::GetInstance();
     
     scoreoid->setDelegate(this);
-    scoreoid->initScoreoid("dbe776b87a", "0a9343a30a7a1a3a8095610a64b70334b09295bb");
+    scoreoid->initScoreoid("INSERT GAME_ID", "API_KEY");
     //scoreoid->getNotification();
     //scoreoid->getPlayer("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "", "", "");
     //scoreoid->getPlayerField("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "last_name");

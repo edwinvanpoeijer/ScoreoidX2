@@ -58,6 +58,8 @@ Scoreoid::Scoreoid()
     this->_currentApiCall = SO_INIT;
     this->_gameID = "";
     this->_ApiKey = "";
+    this->_localUserLoggedIn = false;
+    this->_createUser = false;
     
 }
 
@@ -1315,6 +1317,7 @@ bool Scoreoid::login(const char* playerID,bool shouldCreate)
 {
     this->_currentApiCall = SO_LOGIN;
     this->_createUser = shouldCreate;
+    this->_localUserLoggedIn = false;
     this->_localUserId = playerID;
     CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s",playerID,"","","");
     return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));    
@@ -1334,6 +1337,11 @@ void Scoreoid::loginPlayerHandler(SOPlayer* player,SOResult result)
     }
     else
     {
+        if (result.result == SO_API_SUCCES)
+        {
+            this->_localUserLoggedIn = true;
+        }
+        this->_localUserLoggedIn = true;
         // Callback
         if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
             return delegate->playerCallback(player, result);

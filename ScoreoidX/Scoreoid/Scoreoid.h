@@ -96,6 +96,7 @@ private:
      */
     std::string _localUserId;
     bool _createUser;
+    bool _localUserLoggedIn;
     
     // Private constructor
 	/** allocates and initializes a object.
@@ -148,6 +149,13 @@ public:
      * Methods
      */
     
+    /*
+     * Local user
+     */
+    void setLocalUserID(const char* localID) { this->_localUserId = localID;};
+    const char* getLocalUserID() { return this->_localUserId.c_str();};
+    bool localUserLoggedIn() { return this->_localUserLoggedIn;};
+    
     // Http request and response handles
     bool HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector);
     
@@ -161,7 +169,7 @@ public:
     /*
      *   Gets notifications for this game
      */
-    bool getNotification(); //method lets you pull your game’s in game notifications.
+        bool getNotification(); //method lets you pull your game’s in game notifications.
     //void handleGetNotification(const char* jsonData,int& result);
     /*
      gets the total for the following game field’s bonus, gold, money, kills, lifes, time_played and unlocked_levels.
