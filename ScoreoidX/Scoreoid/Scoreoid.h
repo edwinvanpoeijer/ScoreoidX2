@@ -64,7 +64,6 @@ public:
     virtual void notificationsCallback(CCArray* notifications,SOResult result) {}
     
     virtual void scoreoidAvailable(SOGame* game,SOResult result) {}
-    virtual void playerLoginReady(SOResult result) {}
 };
 
 /*
@@ -83,7 +82,7 @@ private:
      */
     std::string _gameID;
     std::string _ApiKey;
-
+    std::string _apiCallString;
     /*
      *  running actions
      */

@@ -75,22 +75,6 @@ bool HelloWorld::init()
     
     scoreoid->setDelegate(this);
     scoreoid->initScoreoid("INSERT GAME_ID", "API_KEY");
-    //scoreoid->getNotification();
-    //scoreoid->getPlayer("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "", "", "");
-    //scoreoid->getPlayerField("f0e32d18-fc49-3bb7-8b15-dabbbc80dda0", "last_name");
-    //scoreoid->updatePlayerField("newPlayer", "last_name", "achternaam");
-    //scoreoid->getPlayers("date", "asc", "100", "", "", "");
-    
-    //scoreoid->createScore("Edwin", "55000", "", "", "");
-    //scoreoid->countScores("", "", "", "");
-    //scoreoid->countBestScores("", "", "", "");
-    //scoreoid->getAverageScore("", "", "", "");
-    
-    //scoreoid->getScores("", "", "", "", "", "", "");
-    //scoreoid->getBestScores("", "", "", "", "", "", "");
-    //scoreoid->getPlayerScores("Edwin", "", "", "");
-    
-    //scoreoid->getGameAverage("score", "", "", "");
     return true;
 }
 

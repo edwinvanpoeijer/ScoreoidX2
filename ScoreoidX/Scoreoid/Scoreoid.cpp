@@ -28,10 +28,7 @@ USING_NS_CC;
 USING_NS_CC_EXT;
 
 
-#define SCOREOID_GAME_ID "dbe776b87a"
-#define SCOREOID_API_KEY "0a9343a30a7a1a3a8095610a64b70334b09295bb"
 #define SCOREOID_RESPONSE "json"
-#define SCOREOID_POSTDATA "api_key=" SCOREOID_API_KEY "&game_id=" SCOREOID_GAME_ID "&response=" SCOREOID_RESPONSE
 
 Scoreoid* Scoreoid::instance = NULL;
 
@@ -69,6 +66,7 @@ void Scoreoid::initScoreoid(const char *gameID, const char *apiKey)
     this->_actionRunning = false;
     this->_gameID = gameID;
     this->_ApiKey = apiKey;
+    this->_apiCallString = CCString::createWithFormat("api_key=%s&game_id=%s&respsone=json",this->_ApiKey.c_str(),this->_gameID.c_str())->getCString();
     // Call getGame to init
     this->_currentApiCall = SO_INIT;
     this->getGame();
@@ -225,7 +223,7 @@ bool Scoreoid::HttpRequest(const char* apiUrl,const char* data, const char* tag,
     
         // write the post data
         std::string endData = this->removeEmptyFields(data, "&");
-        std::string scoreoid_postdat = SCOREOID_POSTDATA;
+        std::string scoreoid_postdat = this->_apiCallString;
         std::string postData;
         if (strlen(endData.c_str()) > 0)
         {
