@@ -113,7 +113,7 @@ void HelloWorld::scoreoidAvailable(SOGame* game,SOResult resultStruct)
     }
     else
     {
-        CCLog("APICALL result:%d",scoreoid->login("dezebestaatniet1",true));
+        CCLog("APICALL result:%d",scoreoid->login("dezebestaatniet1","first_name","last_name",true));
     }
 }
 

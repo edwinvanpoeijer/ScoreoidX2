@@ -72,9 +72,9 @@ public:
  */
 class Scoreoid : public CCObject
 {
-        
+    
 private:
-        
+    
     ScoreoidDelegate* m_delegate;
     
     /*
@@ -96,6 +96,7 @@ private:
     std::string _localUserId;
     bool _createUser;
     bool _localUserLoggedIn;
+    SOPlayer* _localPlayer;
     
     // Private constructor
 	/** allocates and initializes a object.
@@ -107,7 +108,7 @@ private:
      * Private constructor
      */
     Scoreoid();
-
+    
 public:
     /*
      * Static
@@ -118,11 +119,11 @@ public:
     virtual ~Scoreoid(void);
     
     /*
-     * Set the delegate 
+     * Set the delegate
      */
     void setDelegate(ScoreoidDelegate* delegate) { m_delegate = delegate; }
     ScoreoidDelegate* getDelegate() { return m_delegate; }
-
+    
     /*
      * Init Scoreoid
      */
@@ -136,7 +137,7 @@ public:
     bool getBoolValue(const Value& member, const char* field);
     int getIntValue(const Value& member, const char* field);
     double getDoubleValue(const Value& member, const char* field);
-
+    
     /*
      * Helper methods
      */
@@ -159,16 +160,16 @@ public:
     bool HttpRequest(const char* apiUrl,const char* data, const char* tag,SEL_CallFuncND pSelector);
     
     void HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data);
-    void HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data);    
+    void HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data);
     void HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data);
-    void HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data);    
-    void HttpRequestGameCallback(cocos2d::CCNode *sender, void *data);    
+    void HttpRequestPlayersCallback(cocos2d::CCNode *sender, void *data);
+    void HttpRequestGameCallback(cocos2d::CCNode *sender, void *data);
     void HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *data);
-        
+    
     /*
      *   Gets notifications for this game
      */
-        bool getNotification(); //method lets you pull your game’s in game notifications.
+    bool getNotification(); //method lets you pull your game’s in game notifications.
     //void handleGetNotification(const char* jsonData,int& result);
     /*
      gets the total for the following game field’s bonus, gold, money, kills, lifes, time_played and unlocked_levels.
@@ -176,7 +177,7 @@ public:
      start_date => String Value, YYY-MM-DD format [Optional]
      end_date => String Value, YYY-MM-DD format [Optional]
      platform => The players platform needs to match the string value that was used when creating the player  [Optional]
-    */
+     */
     bool getGameTotal(const char* field, const char* start_date, const char* end_date, const char* platform);
     
     /*
@@ -360,15 +361,15 @@ public:
      * Login using an ID, if needed the user can be created; returns the player description
      * set createPlayer to TRUE if you want to create the player when the player is unknown.
      */
-    bool login(const char* playerID, bool shoudCreate);
+    bool login(const char* playerID, const char* firstName, const char* lastName,bool shoudCreate);
     
     /*
      * Local login handlers
      */
     void loginPlayerHandler(SOPlayer* player,SOResult result);
     void loginCreatePlayerHandler(SOPlayer* player,SOResult result);
-
- };
+    
+};
 
 
 #endif /* defined(__quadro__Scoreoid__) */

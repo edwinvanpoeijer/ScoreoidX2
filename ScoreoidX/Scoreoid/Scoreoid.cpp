@@ -1,26 +1,26 @@
 /****************************************************************************
-Copyright (c) 2013      Edwin van Poeijer
-
-http://www.vanpoeijer.com
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-****************************************************************************/
+ Copyright (c) 2013      Edwin van Poeijer
+ 
+ http://www.vanpoeijer.com
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ 
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
+ ****************************************************************************/
 
 #include "Scoreoid.h"
 
@@ -35,6 +35,7 @@ Scoreoid* Scoreoid::instance = NULL;
 
 Scoreoid::~Scoreoid()
 {
+    CC_SAFE_RELEASE(this->_localPlayer);
 }
 
 Scoreoid* Scoreoid::GetInstance()
@@ -57,6 +58,9 @@ Scoreoid::Scoreoid()
     this->_ApiKey = "";
     this->_localUserLoggedIn = false;
     this->_createUser = false;
+    this->_localPlayer = new SOPlayer();
+    this->_localPlayer->autorelease();
+    this->_localPlayer->retain();
     
 }
 
@@ -118,7 +122,7 @@ std::string Scoreoid::getStringValue(const Value& member, const char* field)
     std::string returnValue = "";
     if (member.HasMember(field) && member[field].IsString())
     {
-            returnValue = member[field].GetString();
+        returnValue = member[field].GetString();
     }
     return returnValue;
 }
@@ -153,7 +157,7 @@ std::string Scoreoid::getStringValue(Value::ConstMemberIterator itr,const char* 
     {
         value = CCString::createWithFormat("%d",itr->value.GetInt64())->getCString();
     }
-
+    
     return value;
 }
 bool Scoreoid::getBoolValue(const Value& member, const char* field)
@@ -213,14 +217,14 @@ bool Scoreoid::HttpRequest(const char* apiUrl,const char* data, const char* tag,
         this->_actionRunning = true;
         returnValue = true;
         CCHttpRequest* request = new CCHttpRequest();
-    
+        
         request->setUrl(apiUrl);
         request->setRequestType(CCHttpRequest::kHttpPost);
         std::vector<std::string> headers;
         headers.push_back("application/x-www-form-urlencoded; charset=utf-8");
         request->setHeaders(headers);
         request->setResponseCallback(this, pSelector);
-    
+        
         // write the post data
         std::string endData = this->removeEmptyFields(data, "&");
         std::string scoreoid_postdat = this->_apiCallString;
@@ -318,7 +322,7 @@ void Scoreoid::HttpRequestScoresCallback(cocos2d::CCNode *sender, void *data)
                 {
                     scoresFound = true;
                     const Value& member = document[i]["Score"];
- 
+                    
                     score->setscore(getIntValue(member, "score"));
                     score->setdifficulty(getIntValue(member, "difficulty"));
                     score->setplatform(getStringValue(member, "platform").c_str());
@@ -456,11 +460,11 @@ void Scoreoid::HttpRequestScoreCallback(cocos2d::CCNode *sender, void *data)
             results->setplatform(getStringValue(member, "platform").c_str());
             results->setleaderBoard(getStringValue(member, "leaderboard").c_str());
             results->setcreated(getStringValue(member, "created").c_str());
-
+            
             Value::ConstMemberIterator itr = document.MemberBegin();
             resultStruct.field = itr->name.GetString();
             resultStruct.value = this->getStringValue(itr, itr->name.GetString());
-
+            
         }
         else
         {
@@ -617,7 +621,7 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
             results->setbest_score(getIntValue(member, "best_score"));
             results->setcreated(getStringValue(member, "created").c_str());
             results->setupdated(getStringValue(member, "updated").c_str());
-
+            
             Value::ConstMemberIterator itr = document.MemberBegin();
             resultStruct.field = itr->name.GetString();
             resultStruct.value = this->getStringValue(itr, itr->name.GetString());
@@ -643,10 +647,10 @@ void Scoreoid::HttpRequestPlayerCallback(cocos2d::CCNode *sender, void *data)
     }
     else
     {
-    // Callback
-    if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
-        return delegate->playerCallback(results, resultStruct);
-    }
+        // Callback
+        if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
+            return delegate->playerCallback(results, resultStruct);
+        }
     }
     
 }
@@ -780,7 +784,7 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
     SOResult resultStruct;
     resultStruct.result = SO_API_FAIL;
     resultStruct.apiCall = response->getHttpRequest()->getTag();
-
+    
     SOGame* results = new SOGame();
     results->autorelease();
     
@@ -822,30 +826,30 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
         }
         else if (document.IsArray())
         {
-                    for (SizeType i = 0; i < document.Size(); i++)
-                    {
-                        if (document[i].HasMember("Game"))
-                        {
-                            const Value& member = document[i]["Game"];
-                            
-                            results->setuser_id(getStringValue(member, "user_id").c_str());
-                            results->setname(getStringValue(member, "name").c_str());
-                            results->setshort_description(getStringValue(member, "short_description").c_str());
-                            results->setdescription(getStringValue(member, "description").c_str());
-                            results->setgame_type(getStringValue(member, "game_type").c_str());
-                            results->setversion(getStringValue(member, "version").c_str());
-                            results->setlevels(getIntValue(member, "levels"));
-                            results->setplatform(getStringValue(member, "platform").c_str());
-                            results->setplay_url(getStringValue(member, "play_url").c_str());
-                            results->setwebsite_url(getStringValue(member, "website_url").c_str());
-                            results->setplayers_count(getIntValue(member, "players_count"));
-                            results->setscores_count(getIntValue(member, "scores_count"));
-                            results->setstatus(getIntValue(member, "status"));
-                            results->setcreated(getStringValue(member, "created").c_str());
-                            results->setupdated(getStringValue(member, "updated").c_str());
-                            
-                        }
-                    }
+            for (SizeType i = 0; i < document.Size(); i++)
+            {
+                if (document[i].HasMember("Game"))
+                {
+                    const Value& member = document[i]["Game"];
+                    
+                    results->setuser_id(getStringValue(member, "user_id").c_str());
+                    results->setname(getStringValue(member, "name").c_str());
+                    results->setshort_description(getStringValue(member, "short_description").c_str());
+                    results->setdescription(getStringValue(member, "description").c_str());
+                    results->setgame_type(getStringValue(member, "game_type").c_str());
+                    results->setversion(getStringValue(member, "version").c_str());
+                    results->setlevels(getIntValue(member, "levels"));
+                    results->setplatform(getStringValue(member, "platform").c_str());
+                    results->setplay_url(getStringValue(member, "play_url").c_str());
+                    results->setwebsite_url(getStringValue(member, "website_url").c_str());
+                    results->setplayers_count(getIntValue(member, "players_count"));
+                    results->setscores_count(getIntValue(member, "scores_count"));
+                    results->setstatus(getIntValue(member, "status"));
+                    results->setcreated(getStringValue(member, "created").c_str());
+                    results->setupdated(getStringValue(member, "updated").c_str());
+                    
+                }
+            }
             resultStruct.field = "success";
             resultStruct.value = "" ;
             
@@ -869,7 +873,7 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
             results->setstatus(getIntValue(member, "status"));
             results->setcreated(getStringValue(member, "created").c_str());
             results->setupdated(getStringValue(member, "updated").c_str());
-
+            
             Value::ConstMemberIterator itr = document.MemberBegin();
             resultStruct.field = itr->name.GetString();
             resultStruct.value = this->getStringValue(itr, itr->name.GetString());
@@ -897,7 +901,7 @@ void Scoreoid::HttpRequestGameCallback(cocos2d::CCNode *sender, void *data)
     {
         // Callback
         if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
-        return delegate->gameCallback(results, resultStruct);
+            return delegate->gameCallback(results, resultStruct);
         }
     }
 }
@@ -913,7 +917,7 @@ void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *d
     CCArray* results = CCArray::create();
     
     if (response)
-    {        
+    {
         result = SO_API_SUCCES;
     }
     if (0 != strlen(response->getHttpRequest()->getTag()))
@@ -938,61 +942,61 @@ void Scoreoid::HttpRequestNotificationsCallback(cocos2d::CCNode *sender, void *d
         std::vector<char> *buffer = response->getResponseData();
         std::string s(buffer->begin(), buffer->end());
         
-    result = SO_API_SUCCES;
-
-    
-    Document document;
-    
-    // Check if the data was correct
-    if(document.Parse<0>(s.c_str()).HasParseError())
-    {
-        result = SO_API_ERROR;
-        resultStruct.field = "error";
-        resultStruct.value = document["error"].GetString() ;
-    }
-    else if (document.IsObject() && document.HasMember("error"))
-    {
-        result = SO_API_ERROR;
-        resultStruct.field = "error";
-        resultStruct.value = document["error"].GetString() ;
-    }
-    else if (document.IsObject() && document.HasMember("notifications"))
-    {
-        if (document["notifications"].HasMember("game_notification"))
-        {            
-            if (document["notifications"]["game_notification"].IsArray())
+        result = SO_API_SUCCES;
+        
+        
+        Document document;
+        
+        // Check if the data was correct
+        if(document.Parse<0>(s.c_str()).HasParseError())
+        {
+            result = SO_API_ERROR;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
+        }
+        else if (document.IsObject() && document.HasMember("error"))
+        {
+            result = SO_API_ERROR;
+            resultStruct.field = "error";
+            resultStruct.value = document["error"].GetString() ;
+        }
+        else if (document.IsObject() && document.HasMember("notifications"))
+        {
+            if (document["notifications"].HasMember("game_notification"))
             {
+                if (document["notifications"]["game_notification"].IsArray())
+                {
                     for (SizeType i = 0; i < document["notifications"]["game_notification"].Size(); i++)
                     {
                         if (document["notifications"]["game_notification"][i].HasMember("GameNotification"))
                         {
-                                const Value& member = document["notifications"]["game_notification"][i]["GameNotification"];
-                                
-                                SONotification* notification = new SONotification();
-                                notification->autorelease();
-                                notification->setTile(getStringValue(member, "title").c_str());
-                                notification->setContent(getStringValue(member, "content").c_str());
-                                notification->setStart_Date(getStringValue(member, "start_date").c_str());
-                                notification->setEnd_Date(getStringValue(member, "end_date").c_str());
-                                notification->setStatus(getBoolValue(member, "status"));
-                                notification->setDebug(getBoolValue(member, "debug"));
-                        
-                                results->addObject(notification);
+                            const Value& member = document["notifications"]["game_notification"][i]["GameNotification"];
+                            
+                            SONotification* notification = new SONotification();
+                            notification->autorelease();
+                            notification->setTile(getStringValue(member, "title").c_str());
+                            notification->setContent(getStringValue(member, "content").c_str());
+                            notification->setStart_Date(getStringValue(member, "start_date").c_str());
+                            notification->setEnd_Date(getStringValue(member, "end_date").c_str());
+                            notification->setStatus(getBoolValue(member, "status"));
+                            notification->setDebug(getBoolValue(member, "debug"));
+                            
+                            results->addObject(notification);
                         }
                     }
+                }
             }
+            resultStruct.field = "success";
+            resultStruct.value = "" ;
         }
-        resultStruct.field = "success";
-        resultStruct.value = "" ;
+        else
+        {
+            resultStruct.field = "error";
+            resultStruct.value = "" ;
+            result = SO_API_ERROR;
+        }
     }
-    else
-    {
-        resultStruct.field = "error";
-        resultStruct.value = "" ;
-        result = SO_API_ERROR;
-    }
-    }
-
+    
     resultStruct.apiCallCode = this->_currentApiCall;
     this->_currentApiCall = SO_NOTHING;
     this->_actionRunning = false;
@@ -1311,14 +1315,17 @@ bool Scoreoid::createScore(const char* username, const char* score, const char* 
 /*
  * Login the player or create a new one
  */
-bool Scoreoid::login(const char* playerID,bool shouldCreate)
+bool Scoreoid::login(const char* playerID, const char* firstName, const char* lastName,bool shouldCreate)
 {
     this->_currentApiCall = SO_LOGIN;
     this->_createUser = shouldCreate;
     this->_localUserLoggedIn = false;
     this->_localUserId = playerID;
+    this->_localPlayer->setusername(playerID);
+    this->_localPlayer->setfirst_name(firstName);
+    this->_localPlayer->setlast_name(lastName);
     CCString* result = CCString::createWithFormat("username=%s&id=%s&password=%s&email=%s",playerID,"","","");
-    return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));    
+    return this->HttpRequest("http://www.scoreoid.com/api/getPlayer", result->getCString(),"getPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
 }
 
 // LoginPlayerHandler()
@@ -1329,7 +1336,7 @@ void Scoreoid::loginPlayerHandler(SOPlayer* player,SOResult result)
     {
         CCLOG("Player not found!");
         this->_currentApiCall = SO_LOGIN_CREATEUSER;
-        CCString* result = CCString::createWithFormat("username=%s&fields",this->_localUserId.c_str(),"");
+        CCString* result = CCString::createWithFormat("username=%s&first_name=%s&last_name=%s",this->_localUserId.c_str(),this->_localPlayer->getfirst_name().c_str(),this->_localPlayer->getlast_name().c_str());
         this->HttpRequest("http://www.scoreoid.com/api/createPlayer", result->getCString(),"createPlayer",callfuncND_selector(Scoreoid::HttpRequestPlayerCallback));
         
     }
@@ -1344,11 +1351,11 @@ void Scoreoid::loginPlayerHandler(SOPlayer* player,SOResult result)
         if (ScoreoidDelegate* delegate = Scoreoid::GetInstance()->getDelegate()) {
             return delegate->playerCallback(player, result);
         }
-
+        
     }
     
 }
 void Scoreoid::loginCreatePlayerHandler(SOPlayer* player,SOResult result)
 {
-    this->login(this->_localUserId.c_str(), false);
+    this->login(this->_localUserId.c_str(),this->_localPlayer->getfirst_name().c_str(),this->_localPlayer->getlast_name().c_str(), false);
 }
